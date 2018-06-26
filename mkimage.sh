@@ -45,8 +45,20 @@ elif [ "$1" == "fp" ]; then
 	cp out/target/product/$PROJECT_NAME/system/lib64/libftalg.so .
 	cp out/target/product/$PROJECT_NAME/system/lib64/hw/fingerprint.default.so .
 	cp out/target/product/$PROJECT_NAME/system/bin/fingerprintd .
+	
+elif [ "$1" == "ota" ]; then
+	# get today as 20180626
+	# ./mkimage.sh ota 20180615 specify date
+	today=$(date +%Y%m%d)
+	echo today: $today
+	make otapackage
+	if [ "$2" == "" ]; then
+			cp out/target/product/$PROJECT_NAME/$PROJECT_NAME-$today.zip .
+	else
+			cp out/target/product/$PROJECT_NAME/$PROJECT_NAME-$today.zip $PROJECT_NAME-$2.zip
+	fi
+else
 
-		
 elif [ "$1" == "lk" ]; then
 	rm lk.bin
 	make lk -j4  2>&1 | tee build.log
