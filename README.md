@@ -14,4 +14,5 @@ my scripts for Windows, Linux etc
 
 * [MergeTxt.bat](/MergeTxt.bat) : merge .txt files into one file written in windows batch file
 
+* [AndroidRealtimeMonitor](/AndroidRealtimeMonitor) : realtime monitor android device kernel and system log
 
