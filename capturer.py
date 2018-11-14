@@ -2,7 +2,9 @@ import re
 import urllib.request
 import os
 
+WEBSITE = "http://www.yac8.com"
 
+# 书法作品名，链接，页数
 class ShufaAlbum:
     def __init__(self, name, path, count):
         self.name = name
@@ -12,12 +14,6 @@ class ShufaAlbum:
     name = ''
     path = ''
     count = 1
-
-
-# 书法作品名，链接，页数
-shufa_pages = {
-    ShufaAlbum('王女节墓志', 'http://www.yac8.com/news/10749', 7),
-}
 
 
 # 创建保存图片的文件夹
@@ -38,15 +34,22 @@ def mkdir(path):
         return False
 
 
-def get_image(path, index, dir):
+def get_image(path, page_no, save_dir):
+    page_no_in = page_no
     request = urllib.request.urlopen(path)
     contents = request.read().decode('gbk')
     url_list = re.findall(r'http.+\.jpg', contents)
+    src_file = re.findall(r'src=\"...+?.jpg\"', contents)
+    if src_file:
+        for file in src_file:
+            url_list.append(WEBSITE + file[7:-1])
     for url in url_list:
-        # 过滤引导图
-        if url.__contains__('infoImg'):
+        # 过滤引导图（带字母） ssdb3247788.jpg
+        # 碑帖图 （纯数字） 134241.jpg
+        if not re.findall(r'/[0-9]+.jpg', url):
+            print('Filter ', url)
             continue
-        save_path = dir + '\\' + str(index) + '.jpg'
+        save_path = save_dir + '\\' + str(page_no) + '.jpg'
         print('downloading: ' + url)
         print('save to: ' + save_path)
         f = open(save_path, 'wb')
@@ -54,21 +57,32 @@ def get_image(path, index, dir):
         buf = request.read()
         f.write(buf)
         f.close()
+        page_no += 1
+    return page_no - page_no_in
 
 
 # 创建本地保存文件夹，并下载保存图片
-if __name__ == '__main__':
-    for sf_album in shufa_pages:
-        album_name = sf_album.name
-        intro_path = sf_album.path
-        max_count = sf_album.count
+def download_album(sf_album):
+    album_name = sf_album.name
+    intro_path = sf_album.path
+    max_count = sf_album.count
 
-        mkdir(album_name)
-        print('开始下载%s 1-%d页...' % (album_name, max_count))
-        for i in range(1, max_count+1):
-            if i == 1:
-                url_path = str(intro_path + ".html")
-            else:
-                url_path = str(intro_path + "_" + str(i) + ".html")
-            get_image(url_path, i, album_name)
+    if intro_path.__contains__(".html"):
+        intro_path = intro_path[0:-5]
+
+    mkdir(album_name)
+    print('开始下载%s 1-%d页...' % (album_name, max_count))
+    page_no = 1
+    for i in range(1, max_count+1):
+        if i == 1:
+            url_path = str(intro_path + ".html")
+        else:
+            url_path = str(intro_path + "_" + str(i) + ".html")
+        try:
+            page_no += get_image(url_path, page_no, album_name)
+        except urllib.error.HTTPError as e:
+            print(e)
+            break
+
+
 
