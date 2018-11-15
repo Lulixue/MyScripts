@@ -19,3 +19,5 @@ my scripts for Windows, Linux etc
 * [AndroidRealtimeMonitor](/AndroidRealtimeMonitor) : realtime monitor android device kernel and system log
 
 * [capturer.py](/capturer.py) : capture shufa album from yac8.com
+
+* [list_capture.py](/list_capture.py) : capture album list from yac8.com
