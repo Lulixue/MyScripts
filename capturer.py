@@ -38,11 +38,13 @@ def get_image(path, page_no, save_dir):
     page_no_in = page_no
     request = urllib.request.urlopen(path)
     contents = request.read().decode('gbk')
-    url_list = re.findall(r'http.+\.jpg', contents)
-    src_file = re.findall(r'src=\"...+?.jpg\"', contents)
+    url_list = re.findall(r'http.+?\.jpg', contents)
+    src_file = re.findall(r'src=\".+?.jpg\"', contents)
     if src_file:
         for file in src_file:
-            url_list.append(WEBSITE + file[7:-1])
+            url_site = file[5:-1]
+            url_site = url_site.replace('..', WEBSITE)
+            url_list.append(url_site)
     for url in url_list:
         # 过滤引导图（带字母） ssdb3247788.jpg
         # 碑帖图 （纯数字） 134241.jpg
@@ -69,8 +71,17 @@ def download_album(sf_album):
 
     if intro_path.__contains__(".html"):
         intro_path = intro_path[0:-5]
+    album_name = album_name.replace(':', '-')
 
-    mkdir(album_name)
+    try:
+        made = mkdir(album_name)
+        if not made:
+            files = os.listdir(album_name)
+            if files.__len__() >= max_count:
+                return
+    except NotADirectoryError as e:
+        print(e)
+        return
     print('开始下载%s 1-%d页...' % (album_name, max_count))
     page_no = 1
     for i in range(1, max_count+1):

@@ -62,7 +62,9 @@ def get_list(path):
                 continue
             if not title or (len(title) == 0):
                 continue
-            link = WEBSITE + link[0][2:]
+            link = link[0][2:]
+            if not link.__contains__(WEBSITE):
+                link = WEBSITE + link
             title = title[0][7:-1]
             count = get_album_page_count(link)
             print('Album[%d]: %s(%s)[%d]' % (album_no, title, link, count))
@@ -93,5 +95,12 @@ if __name__ == '__main__':
             break
 
         for current_album in current_albums:
-            capturer.download_album(current_album)
+            try:
+                capturer.download_album(current_album)
+            except urllib.error.URLError as e:
+                print(e)
+                continue
+            except ConnectionResetError as e:
+                print(e)
+                continue
 
