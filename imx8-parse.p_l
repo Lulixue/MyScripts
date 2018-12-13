@@ -1,0 +1,622 @@
+#!/usr/bin/env perl
+# IMX8 documentation parser
+# usage:
+#  perl iMX8-parse.pl
+#
+# Note: current NXP IMX8M documenation (rev 0 Jan 1 2018) omits the signal pad table information.
+#
+# Requires one text files copied from the NXP IMX8 documentation: 
+# iMX8-GpioRegisters is copied from section 8.2.4.1 (pg 2004) through to 8.2.4.328 (pg 2480)
+#
+
+use strict;
+use warnings;
+
+my $fileNum = 1;
+my $debug = 1;
+
+my $dumpTables = 1;
+
+my $padCount = 0;
+my $muxCount = 0;
+my $inpCount = 0;
+my $duplicate = 0;
+my $type = "";
+my $regName = "";
+my $padName = "";
+my $nextName = "";
+my $address = "";
+my $offset = "";
+my $default = "";
+my @muxSettings = ();
+
+my %regNames = ();
+my %padNames = ();
+
+my %gpioToPad = ();
+my %padToGpio = ();
+my %padToImxPin = ();
+my %padToCtlReg = ();
+my %padToMuxReg = ();
+my %padToCtlName = ();
+my %padToMuxName = ();
+my %padToAltSignalRegList = ();
+my %padAltToNameBitsSignal = ();
+my %regNameToRegOffset = ();
+my %regNameToRegAddr = ();
+my %regNameToRegDefault = ();
+
+my @altSignalRegList = ();
+my @inputSelectList = ();
+
+sub makeImxPin
+{
+    my $imxPin = shift;
+    $imxPin =~ s/GPIO([0-9])_IO([0-9][0-9])/IMX_MAKE_PIN_1\($1, $2\)/;
+    $imxPin =~ s/0([0-9])/$1/;
+    return $imxPin;
+} 
+
+#
+# altSignalExists( $altSignalList, $item)
+# 
+# see if $item array element exists in alt signal list - must pass both arrays by reference
+#
+sub altSignalExists
+{
+    my ($listRef, $itemRef) = @_;
+    my ($altName, , ) = @{$itemRef};
+
+    foreach my $item (@{$listRef})
+    {
+        if (@{$item}[0] eq $altName) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+#
+# IMX8 documentation is missing pad to signal tables
+#
+# open (my $padFile, "<", "iMX8-SignalPadTable.txt") or die "Can't open signal pad file";
+#
+# read the pad name to GPIO signal file and store in a hash table
+# $1 = Signal
+# $2 = Pad
+#
+# while (<$padFile>)
+# {
+#     while (/(GPIO[0-9]_IO[0-9][0-9]) GPIO Signal ([A-Z0-9_]+) (ALT[0-9])/g)
+#     {
+#         $padToGpio{ $2 } = $1;
+#         $gpioToPad{ $1 } = $2;
+#         $padToImxPin{ $2 } = makeImxPin($1);
+#     }
+# }
+my $gpioFile;
+if ($fileNum eq 0) {
+    open ($gpioFile, "<", "iMX8-GpioRegisters.txt") or die "Can't GPIO registers file";
+} elsif ( $fileNum eq 1) {
+    open ($gpioFile, "<", "iMX6ull-GpioRegisters.txt") or die "Can't GPIO registers file";
+}
+
+# read the GPIO tables
+while (<$gpioFile>)
+{
+    # discard table breaks
+    my $tableBreak = 0;
+
+    # peek at next line
+    my $pos = tell();
+    my $nextLine = <$gpioFile>;
+    if (defined $nextLine && $nextLine =~ /^Table continues on the next page/)
+    {
+        $tableBreak = 1; 
+    }
+    seek $gpioFile, $pos, 0;  # restore file position
+
+    # combine clean table break
+    if ($tableBreak)
+    {
+        chomp;
+        $_ = $_ . <$gpioFile>;
+    }
+    
+    if (/Table continues on the next page\.\.\./)
+    {
+        # skip contents 
+        
+        # Table continues on the next page...
+        # IOMUX Controller (IOMUXC)
+        # i.MX 8M Dual/8M QuadLite/8M Quad Applications Processors Reference Manual, Rev. 0, 01/2018 2006 NXP Semiconductors
+        # IOMUXC_GPR_GPR1 field descriptions (continued)
+        
+        # Table continues ...
+        chomp;
+        $_ = $_ . <$gpioFile>;
+
+        # footer
+        chomp;
+        $_ = $_ . <$gpioFile>;
+
+        # chapter or table title
+        chomp;
+        $_ = $_ . <$gpioFile>;
+
+        # combine next line in table
+        chomp;
+        $_ = $_ . <$gpioFile>;
+
+        $_ =~ s/Table continues on the next page.*\(continued\)//;
+    }
+    if ( $debug >= 2) 
+    {
+        print "$_";
+        # continue;
+    }
+    # parse the register names and addresses
+	
+    if (/([0-9]+\.[0-9]+\.[0-9]+).+ SW MUX(( Control)|( Control Register)|)$/)
+    {
+		chomp;
+        $_ = $_ . " " . <$gpioFile>;
+		if (/SW MUX Control Register$/)
+		{
+			chomp;
+			$_ = $_ . " " . <$gpioFile>;
+		}
+		print "[Debug][New-Mux]$_";
+    }
+	elsif (/([0-9]+\.[0-9]+\.[0-9]+).+SW PAD(( Control)|( Control Register)|)$/)
+    {
+		chomp;
+        $_ = $_ . " ". <$gpioFile>;
+		if (/SW PAD Control Register$/)
+		{
+			chomp;
+			$_ = $_ . " " . <$gpioFile>;
+		}
+		print "[Debug][New-PAD]$_";
+	}
+	elsif (/([0-9]+\.[0-9]+\.[0-9]+).+DAISY(( Register)|)$/)
+    {
+		chomp;
+        $_ = $_ . " ". <$gpioFile>;
+		if (/DAISY Register$/)
+		{
+			chomp;
+			$_ = $_ . " " . <$gpioFile>;
+		}
+		print "[Debug][New-DAISY]$_";
+	}
+	
+	if (/SW MUX Control Register \((.+)\)/)
+	{
+		$type = "mux";
+		$regName = "$1";
+		$muxCount ++;
+		$default = "";
+
+		$duplicate = exists $regNames{ $regName };
+		if (not $duplicate)
+		{
+		   $regNames{ $regName } = 1;
+		}
+		if ($debug >=  1)
+		{
+			print "[Debug]> $_\n";
+			print "[Debug]MUX: $regName\n";
+		}
+	}
+    elsif (/SW PAD Control Register \((.+)\)/)
+	{
+		$type = "ctl";
+		$regName = "$1";
+		$padCount ++;
+		$default = "";
+
+		$duplicate = exists $regNames{ $regName };
+		if (not $duplicate)
+		{
+		   $regNames{ $regName } = 1;
+		}
+		if ($debug >= 1)
+		{
+			print "[Debug]> $_\n";
+			print "[Debug]PAD: $regName\n";
+		}
+	}
+	elsif (/DAISY Register \((.+)\)/)
+	{
+		$type = "inp";
+		$regName = "$1";
+		$inpCount ++;
+		$default = "";
+
+		$duplicate = exists $regNames{ $regName };
+		if (not $duplicate)
+		{
+		   $regNames{ $regName } = 1;
+		}
+		if ($debug >= 1)
+		{
+			print "[Debug]> $_\n";
+			print "[Debug]DAISY: $regName\n";
+		}
+	}
+#    elsif (/SW PAD Control Register \((.+)\)/)
+#    {
+#        $type = "grp";
+#        $regName = "$1";
+#        $inpCount ++;
+#        $default = "";
+#    }
+    elsif (/Address: ([0-9a-fA-F_]+)h base \+ ([0-9a-fA-F]+)h offset = ([0-9a-fA-F_]+)h/)
+    {
+        $address = "$3";
+        $offset = "$2";
+        $address =~ s/_//g;
+        $regNameToRegAddr{ $regName } = $address;
+        $regNameToRegOffset{ $regName } = $offset;
+    }
+    elsif (/.*Reset ([01 ]{31})/)
+    {
+        # bit field
+        $default = "$default $1";
+        #  $default = "$1";
+        $default =~ s/\ //g;
+
+        if ($regName ne "")
+        {
+            if ($debug >= 1)
+            {
+                print "[Debug]> $_\n";
+                print "[Debug]$regName $default\n";
+            }
+        }
+    }
+    # Parse the pad name for mux table entries
+    elsif (/Select .* iomux .* pad: ([0-9A-Z_]+)/)
+    {
+        if ($debug >= 1)
+        {
+            print "[Debug]> $_\n";
+            print "[Debug] default: $default\n";
+        }
+        $padName = "$1";
+        $padToMuxName{ $padName } = $regName;
+        $padToMuxReg{ $padName } = $offset;
+        $regNameToRegDefault{ $regName } = oct("0b$default");
+
+        $duplicate = exists $padNames{ $padName };
+        if (not $duplicate)
+        {
+           $padNames{ $padName } = 1;
+        }
+    }
+    # Parse the pad name for pad control entries
+    elsif (/Select one out of next values for pad: ([0-9A-Z_]+)/)
+    {
+        $padName = "$1";
+        $padToCtlName{ $padName } = $regName;
+        $padToCtlReg{ $padName } = $offset;
+        $regNameToRegDefault{ $regName } = oct("0b$default");
+
+        $duplicate = exists $padNames{ $padName };
+        if (not $duplicate)
+        {
+           $padNames{ $padName } = 1;
+        }
+    }
+    elsif (/Selecting Pads Involved in Daisy Chain/)
+    {
+        push(@inputSelectList, $regName );
+    }
+
+    # parse the mux settings from the mux table 
+    # bits | altname | signal
+    my $muxTable = $_;
+    if (exists $padToAltSignalRegList{ $padName })
+    {
+        @altSignalRegList = @{$padToAltSignalRegList{ $padName }};
+    } 
+    else
+    {
+        @altSignalRegList = ();
+    }
+
+    while ($muxTable =~ /([0-1]+) ([A-Z0-9_]+) .? Select mux mode: ([A-Z0-9_]+) mux port: ([A-Z0-9_]+) of instance: ([A-Z0-9_]+)/g )
+    {
+        my $elem = [$3, "$5_$4", ];
+
+        if (0 == altSignalExists(\@altSignalRegList, $elem))
+        {
+            push(@altSignalRegList, $elem);
+
+            # IMX8 documentation is missing pad to signal tables, 
+            # try to infer from ALT signal data
+            my $gpio = $2;
+            if ($gpio =~ /(GPIO[0-9]_IO[0-9][0-9])/)
+            {
+                $padToGpio{ $padName } = $1;
+                $gpioToPad{ $1 } = $padName;
+                $padToImxPin{ $padName } = makeImxPin($1);
+            }
+        }
+        if ( $debug >= 1) 
+        {
+            print "[Debug]> muxTable: $muxTable\n";
+            print "[Debug]$padName $1 $2 $3 $4 $5\n";
+        }
+    }       
+
+    if (scalar(@altSignalRegList) > 0)
+    {
+        $padToAltSignalRegList{ $padName } = [ @altSignalRegList ];
+    }
+
+    # parse the alt settings from the Select Input table
+    # bits | PAD_ALT | altname | pad | signal
+    my $inputTable = $_;
+    while ($inputTable =~ /([0-1]+) ([A-Z0-9_]+) — Selecting Pad: ([A-Z0-9_]+) Mode: (ALT[0-9]) for ([A-Z0-9_]+)/g )
+    {
+        if ( $debug >= 1) 
+        {
+            print "[Debug]> inputTable: $inputTable\n";
+            print "[Debug]$3 $4\n";
+        }
+        $padAltToNameBitsSignal{ "$3 $4" } = [$2, oct "0b$1", $5];
+
+        # for IMX8 table, Input Select not mentioned in MUX tables so need to build from Input Select tables
+        $padName = $3;
+        if (exists $padToAltSignalRegList{ $padName })
+        {
+            @altSignalRegList = @{$padToAltSignalRegList{ $padName }};
+            foreach my $altSignalReg (@altSignalRegList)
+            {
+                my ($altName, $signal, $regName2) = @{$altSignalReg};
+                if (($altName eq $4) && (not defined $regName2))
+                {
+                    #print "$padName $altName missing $regName\n";
+                    $altSignalReg = [$altName, $signal, $regName];
+                    $padToAltSignalRegList{ $padName } = [ @altSignalRegList ]
+                }
+            }
+        }
+    }
+}
+
+#
+# print out the tables if dumping data
+#
+if ($dumpTables != 0)
+{
+   print "\n";
+   # dump tables
+   foreach $regName (sort keys %regNames)
+   {
+      my $addr;
+      my $offset;
+      my $default;
+
+      $addr = $regNameToRegAddr{ $regName };
+      $offset = $regNameToRegOffset{ $regName };
+      if (exists $regNameToRegDefault{ $regName })
+      {
+         $default = $regNameToRegDefault{ $regName };
+      }
+      else
+      {
+         $default = "";
+      }
+
+      print "$regName - addr: $addr - offset:$offset - default: $default\n";
+   }
+   print "\n";
+
+   foreach $padName (sort keys %padNames)
+   {
+      my $muxName;
+      my $muxReg;
+      my $ctlName;
+      my $ctlReg;
+
+      print "$padName";
+      if (exists $padToMuxName{ $padName })
+      {
+         $muxName = $padToMuxName{ $padName };
+         $muxReg = $padToMuxReg{ $padName };
+         print " - muxName: $muxName - muxReg: $muxReg";
+      }
+      if (exists $padToCtlName{ $padName })
+      {
+         $ctlName = $padToCtlName{ $padName };
+         $ctlReg = $padToCtlReg{ $padName };
+         print " - ctlName: $ctlName - ctlReg: $ctlReg";
+      }
+      print "\n";
+
+      if (exists $padToAltSignalRegList{ $padName })
+      {
+         @altSignalRegList = @{$padToAltSignalRegList{ $padName }};
+         foreach my $altSignalReg (@altSignalRegList)
+         {
+             my ($altName, $signal, $regName2) = @{$altSignalReg};
+             if (defined $regName2)
+             {
+                print " alt $altName $signal $regName2\n";
+             }
+             else
+             {
+                print " alt $altName $signal\n";
+             }
+         }
+      }
+      print "\n";
+   }
+   print "\n";
+}
+# end table dump
+
+my $gpio;
+
+# GpioPinDataSparseMap
+print "// GpioPinDataSparseMap\n";
+
+foreach $gpio (sort keys %gpioToPad)
+{
+    my $pin = makeImxPin($gpio);
+    my $pad = $gpioToPad{ $gpio };
+    my $muxOffset = $padToMuxReg{ $pad };
+    my $ctlOffset = $padToCtlReg{ $pad };
+    my $ctlName = $padToCtlName{ $pad };
+    my $muxName = $padToMuxName{ $pad };
+    my $ctlDefault = sprintf("%08X", $regNameToRegDefault{ $ctlName});
+    my $muxDefault = sprintf("%02X", $regNameToRegDefault{ $muxName});
+    print "{ $pin, 0x$ctlOffset, 0x$ctlDefault, 0x$muxOffset, 0x$muxDefault }, // $gpio $pad\n";
+}
+
+print "\n";
+
+#GpioPinInputSelectMap
+print "// GpioPinInputSelectMap\n";
+foreach $gpio (sort keys %gpioToPad)
+{
+    my $pad = $gpioToPad{ $gpio };
+    my $pin = makeImxPin($gpio);
+    my $found = 0;
+
+    if (exists $padToAltSignalRegList{ $pad })
+    {
+        @altSignalRegList = @{$padToAltSignalRegList{ $pad }};
+        foreach my $altSignalReg (@altSignalRegList)
+        {
+            my ($altName, $signal, $regName) = @{$altSignalReg};
+
+            if (defined $regName)
+            {
+                $found = 1;
+                my $offset = $regNameToRegOffset{ $regName };
+                # print "$pad $altName\n";
+                my ($name, $bits, $signal2) = @{ $padAltToNameBitsSignal{ "$pad $altName" }};
+                my $altNum = $altName;
+                $altNum =~ s/ALT([0-9])/$1/;
+
+                print "{ $pin, $altNum, 0x$offset, $bits }, // $padToMuxName{ $pad } - $altName - $signal - $regName\n";
+            }
+        }
+
+        if ($found)
+        {
+            print "\n";
+        }
+    }   
+}
+
+print "\n";
+
+#iMX8.h 
+# input select register addresses
+print "// edk2\n";
+print "// iMX8.h\n";
+print "typedef enum {\n";
+foreach $regName (@inputSelectList)
+{
+    my $address = $regNameToRegAddr{ $regName };
+    print "    $regName = 0x$address,\n";
+}
+print "} IMX_INPUT_SELECT;\n";
+
+print "\n";
+
+#iMX8IoMux.h 
+print "// edk2\n";
+print "// iMX8IoMux.h\n";
+
+# Input Select values
+print "// Input Select values ";
+print "typedef enum {\n";
+foreach $gpio (sort keys %gpioToPad)
+{
+    my $pad = $gpioToPad{ $gpio };
+    my $found = 0;
+
+    if (exists $padToAltSignalRegList{ $pad })
+    {
+        @altSignalRegList = @{$padToAltSignalRegList{ $pad }};
+        foreach my $altSignalReg (@altSignalRegList)
+        {
+            my ($altName, $signal, $regName) = @{$altSignalReg};
+            if (defined $regName)
+            {
+                $found = 1;
+                my ($name, $bits, $signal2) = @{ $padAltToNameBitsSignal{ "$pad $altName" }};
+
+                print "   $pad" . "_$altName = 0x" . $bits . " // Selecting $altName of pad $pad for $signal2\n";
+            }
+        }
+
+        if ($found)
+        {
+            print "\n";
+        }
+    }   
+}
+
+# IMX_PAD definitions - PAD_CTL + PAD_MUX register offsets
+print "typedef enum {\n";
+foreach $gpio (sort keys %gpioToPad)
+{
+    my $pad = $gpioToPad{ $gpio };
+    my $pin = makeImxPin($gpio);
+
+    my $muxOffset = $padToMuxReg{ $pad };
+    my $ctlOffset = $padToCtlReg{ $pad };
+    my $ctlName = $padToCtlName{ $pad };
+    my $muxName = $padToMuxName{ $pad };
+    my $signal;
+
+    if (exists $padToAltSignalRegList{ $pad })
+    {
+        @altSignalRegList = @{$padToAltSignalRegList{ $pad }};
+        (my $altName, $signal, my $inputSelect) = @{ $altSignalRegList[0] };
+    }
+    else
+    {
+        print "no ALT0\n";
+    }
+
+    print "   //\n";
+    print "   // Pad Control Register ($ctlName)\n";
+    print "   // Pad Mux Register ($muxName)\n";
+    print "   //\n";
+    print "   IMX_PAD_$pad = _IMX_PAD(0x$ctlOffset, 0x$muxOffset), // $signal\n\n";
+}
+print "} IMX_PAD;\n\n";
+
+# Alternate function numbers
+print "// Alternate function numbers\n";
+foreach $gpio (sort keys %gpioToPad)
+{
+    my $pad = $gpioToPad{ $gpio };
+
+    if (exists $padToAltSignalRegList{ $pad })
+    {
+        print "typedef enum {\n";
+        @altSignalRegList = @{$padToAltSignalRegList{ $pad }};
+        foreach my $altSignalReg (@altSignalRegList)
+        {
+            my ($altName, $signal, $regName) = @{$altSignalReg};
+            my $altNum = $altName;
+            $altNum =~ s/ALT([0-9])/$1/;
+            $altNum = substr($altNum, 0, 1);
+            my $val = $pad . "_" . $altName . "_" . $signal;
+
+            print "   IMX_IOMUXC_$val = $altNum,\n";
+        }
+        print "} IMX_IOMUXC_" . $pad . "_ALT;\n\n";
+    }   
+}
+
+print "\n";
