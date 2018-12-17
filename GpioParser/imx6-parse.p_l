@@ -13,9 +13,9 @@ use strict;
 use warnings;
 
 my $fileNum = 1;
-my $debug = 1;
+my $debug = 0;
 
-my $dumpTables = 1;
+my $dumpTables = 0;
 
 my $padCount = 0;
 my $muxCount = 0;
@@ -156,95 +156,104 @@ while (<$gpioFile>)
         # continue;
     }
     # parse the register names and addresses
-	
+    
     if (/([0-9]+\.[0-9]+\.[0-9]+).+ SW MUX(( Control)|( Control Register)|)$/)
     {
-		chomp;
+        chomp;
         $_ = $_ . " " . <$gpioFile>;
-		if (/SW MUX Control Register$/)
-		{
-			chomp;
-			$_ = $_ . " " . <$gpioFile>;
+        if (/SW MUX Control Register$/)
+        {
+            chomp;
+            $_ = $_ . " " . <$gpioFile>;
+        }
+		if ( $debug >= 1) 
+		{		
+			print "[Debug][New-Mux]$_";
 		}
-		print "[Debug][New-Mux]$_";
     }
-	elsif (/([0-9]+\.[0-9]+\.[0-9]+).+SW PAD(( Control)|( Control Register)|)$/)
+    elsif (/([0-9]+\.[0-9]+\.[0-9]+).+SW PAD(( Control)|( Control Register)|)$/)
     {
-		chomp;
+        chomp;
         $_ = $_ . " ". <$gpioFile>;
-		if (/SW PAD Control Register$/)
-		{
-			chomp;
-			$_ = $_ . " " . <$gpioFile>;
+        if (/SW PAD Control Register$/)
+        {
+            chomp;
+            $_ = $_ . " " . <$gpioFile>;
+        }
+		if ( $debug >= 1) 
+		{		
+			print "[Debug][New-PAD]$_";
 		}
-		print "[Debug][New-PAD]$_";
-	}
-	elsif (/([0-9]+\.[0-9]+\.[0-9]+).+DAISY(( Register)|)$/)
+    }
+    elsif (/([0-9]+\.[0-9]+\.[0-9]+).+DAISY(( Register)|)$/)
     {
-		chomp;
+        chomp;
         $_ = $_ . " ". <$gpioFile>;
-		if (/DAISY Register$/)
-		{
-			chomp;
-			$_ = $_ . " " . <$gpioFile>;
+        if (/DAISY Register$/)
+        {
+            chomp;
+            $_ = $_ . " " . <$gpioFile>;
+        }
+		if ( $debug >= 1) 
+		{		
+			print "[Debug][New-DAISY]$_";
 		}
-		print "[Debug][New-DAISY]$_";
-	}
-	
-	if (/SW MUX Control Register \((.+)\)/)
-	{
-		$type = "mux";
-		$regName = "$1";
-		$muxCount ++;
-		$default = "";
+    }
+    
+    if (/SW MUX Control Register \((.+)\)/)
+    {
+        $type = "mux";
+        $regName = "$1";
+        $muxCount ++;
+        $default = "";
 
-		$duplicate = exists $regNames{ $regName };
-		if (not $duplicate)
-		{
-		   $regNames{ $regName } = 1;
-		}
-		if ($debug >=  1)
-		{
-			print "[Debug]> $_\n";
-			print "[Debug]MUX: $regName\n";
-		}
-	}
+        $duplicate = exists $regNames{ $regName };
+        if (not $duplicate)
+        {
+           $regNames{ $regName } = 1;
+        }
+        if ($debug >=  1)
+        {
+            print "[Debug]> $_\n";
+            print "[Debug]MUX: $regName\n";
+        }
+    }
     elsif (/SW PAD Control Register \((.+)\)/)
-	{
-		$type = "ctl";
-		$regName = "$1";
-		$padCount ++;
-		$default = "";
+    {
+        $type = "ctl";
+        $regName = "$1";
+        $padCount ++;
+        $default = "";
 
-		$duplicate = exists $regNames{ $regName };
-		if (not $duplicate)
-		{
-		   $regNames{ $regName } = 1;
-		}
-		if ($debug >= 1)
-		{
-			print "[Debug]> $_\n";
-			print "[Debug]PAD: $regName\n";
-		}
-	}
-	elsif (/DAISY Register \((.+)\)/)
-	{
-		$type = "inp";
-		$regName = "$1";
-		$inpCount ++;
-		$default = "";
+        $duplicate = exists $regNames{ $regName };
+        if (not $duplicate)
+        {
+           $regNames{ $regName } = 1;
+        }
+        if ($debug >= 1)
+        {
+            print "[Debug]> $_\n";
+            print "[Debug]PAD: $regName\n";
+        }
+    }
+    elsif (/DAISY Register \((.+)\)/)
+    {
+        $type = "inp";
+        $regName = "$1";
+        $inpCount ++;
+        $default = "";
 
-		$duplicate = exists $regNames{ $regName };
-		if (not $duplicate)
-		{
-		   $regNames{ $regName } = 1;
-		}
-		if ($debug >= 1)
-		{
-			print "[Debug]> $_\n";
-			print "[Debug]DAISY: $regName\n";
-		}
-	}
+        $duplicate = exists $regNames{ $regName };
+        if (not $duplicate)
+        {
+           $regNames{ $regName } = 1;
+        }
+        if ($debug >= 1)
+        {
+            print "[Debug]> $_\n";
+            print "[Debug]DAISY: $regName\n";
+        }
+    }
 #    elsif (/SW PAD Control Register \((.+)\)/)
 #    {
 #        $type = "grp";
@@ -279,11 +288,11 @@ while (<$gpioFile>)
     # Parse the pad name for mux table entries
     elsif (/Select .* iomux .* pad: ([0-9A-Z_]+)/)
     {
-        if ($debug >= 1)
-        {
-            print "[Debug]> $_\n";
-            print "[Debug] default: $default\n";
-        }
+        # if ($debug >= 1)
+        # {
+            # print "[Debug]> $_\n";
+            # print "[Debug] default: $default\n";
+        # }
         $padName = "$1";
         $padToMuxName{ $padName } = $regName;
         $padToMuxReg{ $padName } = $offset;
@@ -325,10 +334,17 @@ while (<$gpioFile>)
     {
         @altSignalRegList = ();
     }
-
-    while ($muxTable =~ /([0-1]+) ([A-Z0-9_]+) .? Select mux mode: ([A-Z0-9_]+) mux port: ([A-Z0-9_]+) of instance: ([A-Z0-9_]+)/g )
+	
+	# IMX8: 000 ALT0_GPIO1_IO03 — Select mux mode: ALT0 mux port: IO03 of instance: GPIO1
+	# while ($muxTable =~ /([0-1]+) ([A-Z0-9_]+) — Select mux mode: ([A-Z0-9_]+) mux port: ([A-Z0-9_]+) of instance: ([A-Z0-9_]+)/g )
+	
+	# 101 ALT5 — Slect mux mode: ALT5 mux port, GPIO5_IO02 of instance - gpio5
+	# 101 ALT5 ? Select mux mode: ALT5 mux port, GPIO5_IO00 of instance - gpio5
+	# 101 ALT5 ? Select mux mode: ALT5 mux port: GPIO1_IO10 of instance: gpio1 
+    while ($muxTable =~ /([0-1]+) ([A-Za-z0-9_]+) .+S.?lect mux mode.+ ([A-Za-z0-9_]+) mux port.+ ([A-Za-z0-9_]+) of instance.+ ([A-Za-z0-9_]+)/g )
     {
-        my $elem = [$3, "$5_$4", ];
+        # my $elem = [$3, "$5_$4", ];
+		my $elem = [$2, "$4", ];
 
         if (0 == altSignalExists(\@altSignalRegList, $elem))
         {
@@ -336,7 +352,8 @@ while (<$gpioFile>)
 
             # IMX8 documentation is missing pad to signal tables, 
             # try to infer from ALT signal data
-            my $gpio = $2;
+            # my $gpio = $2;
+			my $gpio = $4;
             if ($gpio =~ /(GPIO[0-9]_IO[0-9][0-9])/)
             {
                 $padToGpio{ $padName } = $1;
@@ -359,15 +376,21 @@ while (<$gpioFile>)
     # parse the alt settings from the Select Input table
     # bits | PAD_ALT | altname | pad | signal
     my $inputTable = $_;
-    while ($inputTable =~ /([0-1]+) ([A-Z0-9_]+) — Selecting Pad: ([A-Z0-9_]+) Mode: (ALT[0-9]) for ([A-Z0-9_]+)/g )
+	
+	# 0 SAI1_RXFS_ALT0 — Selecting Pad: SAI1_RXFS Mode: ALT0 for SAI1_RX_SYNC
+    # while ($inputTable =~ /([0-1]+) ([A-Z0-9_]+) — Selecting Pad: ([A-Z0-9_]+) Mode: (ALT[0-9]) for ([A-Z0-9_]+)/g )
+	
+	# 00 GPIO1_IO00_ALT2 ? Selecting Pad: GPIO1_IO00 for Mode: ALT2
+    while ($inputTable =~ /([0-1]+) ([A-Z0-9_]+) .+Selecting Pad.+ ([A-Z0-9_]+) for Mode.+ (ALT[0-9])/g)
     {
         if ( $debug >= 1) 
         {
             print "[Debug]> inputTable: $inputTable\n";
-            print "[Debug]$3 $4\n";
+            print "[Debug]$1 $2 $3 $4\n";
         }
-        $padAltToNameBitsSignal{ "$3 $4" } = [$2, oct "0b$1", $5];
-
+        # $padAltToNameBitsSignal{ "$3 $4" } = [$2, oct "0b$1", $5];
+        $padAltToNameBitsSignal{ "$3 $4" } = [$2, oct "0b$1", ""];
+        
         # for IMX8 table, Input Select not mentioned in MUX tables so need to build from Input Select tables
         $padName = $3;
         if (exists $padToAltSignalRegList{ $padName })
@@ -472,6 +495,10 @@ foreach $gpio (sort keys %gpioToPad)
     my $ctlOffset = $padToCtlReg{ $pad };
     my $ctlName = $padToCtlName{ $pad };
     my $muxName = $padToMuxName{ $pad };
+	if (!$pad || !$ctlName || !$muxName) 
+	{
+		next;
+	}
     my $ctlDefault = sprintf("%08X", $regNameToRegDefault{ $ctlName});
     my $muxDefault = sprintf("%02X", $regNameToRegDefault{ $muxName});
     print "{ $pin, 0x$ctlOffset, 0x$ctlDefault, 0x$muxOffset, 0x$muxDefault }, // $gpio $pad\n";
@@ -519,7 +546,7 @@ print "\n";
 #iMX8.h 
 # input select register addresses
 print "// edk2\n";
-print "// iMX8.h\n";
+print "// iMX6ULL.h\n";
 print "typedef enum {\n";
 foreach $regName (@inputSelectList)
 {
