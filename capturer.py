@@ -45,6 +45,7 @@ def get_image(path, page_no, save_dir):
             url_site = file[5:-1]
             url_site = url_site.replace('..', WEBSITE)
             url_list.append(url_site)
+    url_list = list(set(url_list))
     for url in url_list:
         # 过滤引导图（带字母） ssdb3247788.jpg
         # 碑帖图 （纯数字） 134241.jpg
