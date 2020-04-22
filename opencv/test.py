@@ -80,24 +80,26 @@ for contour in contours:
         for cnt in contour:
             allContours.append(cnt.tolist()) 
 
-### draw fitting line
 rows,cols = img.shape[:2]
-i = 0
-for cnt in drawContours:
-    image = copy.copy(img)
-    border = InnerContour(cnt)
-    [vx,vy,x,y] = cv2.fitLine(cnt, cv2.DIST_L2,0,0.01,0.01)
-    lefty = int((-x*vy/vx) + y)
-    righty = int(((cols-x)*vy/vx)+y)
+### draw fitting line
+# i = 0
+# for cnt in drawContours:
+#     image = copy.copy(img)
+#     border = InnerContour(cnt)
+#     [vx,vy,x,y] = cv2.fitLine(cnt, cv2.DIST_L2,0,0.01,0.01)
+#     lefty = int((-x*vy/vx) + y)
+#     righty = int(((cols-x)*vy/vx)+y)
     
 
-    cv2.drawContours(image, [cnt], 0, (0, 0,255), 3)
-    cv2.line(image,(cols-1,righty),(0,lefty),(0,255,0),2)
-    # cv2.line(image,(int(vx),int(vy)),(int(x), int(y)),(0,255,0),2) 
-    title = "image" + str(i)
-    cv2.imshow(title, image)
-    i += 1
+#     cv2.drawContours(image, [cnt], 0, (0, 0,255), 3)
+#     cv2.line(image,(cols-1,righty),(0,lefty),(0,255,0),2)
+#     # cv2.line(image,(int(vx),int(vy)),(int(x), int(y)),(0,255,0),2) 
+#     title = "image" + str(i)
+#     cv2.imshow(title, image)
+#     i += 1
  
+
+### draw image outline
 allContours = np.array(allContours)
 # define main island contour approx. and hull
 perimeter = cv2.arcLength(allContours,True)
@@ -110,8 +112,26 @@ print("hull: ", hull)
 # cv2.drawContours(img, [allContours], 0, (0, 0,255), 3)
 
 # cv2.drawContours(img, [approx], -1, (0, 0, 255), 3)
-# cv2.drawContours(img, [hull], -1, (255, 255, 255), 3)
+cv2.drawContours(img, [hull], -1, (255, 255, 255), 3)
 
+
+### crop contour
+i = 0
+for cnt in drawContours:
+    rc = cv2.minAreaRect(cnt)
+    box = cv2.boxPoints(rc) 
+    box = np.int0(box)
+    cv2.drawContours(img, [box],0,(0,0,255),2)
+    print(rc)  
+    pts = box.tolist()
+
+    print(pts)
+    # crop
+    # img_crop = img[pts[1][1]:pts[0][1], pts[1][0]:pts[2][0]] 
+                       
+    title = "crop" + str(i)
+    i+=1  
+    # cv2.imshow(title, img_crop)
 
 ### draw centroid
 M = cv2.moments(hull) 
@@ -126,7 +146,7 @@ cY = int(M["m01"] / M["m00"])
 
 
 
-# cv2.imshow("image", img)
+cv2.imshow("image", img)
 # cv2.imshow("image gray", imgray)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
