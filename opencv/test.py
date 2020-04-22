@@ -18,10 +18,30 @@ class InnerContour:
                 pass
         pass
 
+
+def contourIsOnEdge(contours):
+    for cont in contours: 
+        print("cont: ", cont)
+        x = cont.item(0, 0)
+        y = cont.item(0, 1)
+        if x <= 5 or y <= 5:
+            return True
+    
+    return False
+
 # img = cv2.imread("text.png")
-img = cv2.imread("df_bu.jpg")
+img = cv2.imread("lq_sui.jpg")
 imgray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-_, threshold = cv2.threshold(imgray, 127, 255, 0)
+
+# Creating kernel 
+kernel = np.ones((1, 1), np.uint8) 
+# Using cv2.erode() method  
+imgray = cv2.erode(imgray, kernel) 
+
+size = 10
+imgray = cv2.bilateralFilter(imgray, size, size * 2, size / 2)
+
+_, threshold = cv2.threshold(imgray, 127, 255, 0) 
 contours, hierarchy = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
 height, width, channels = img.shape
@@ -43,9 +63,12 @@ for contour in contours:
     if area >= minArea:
         print("area: ", area)
         drawContours.append(contour)
+        if contourIsOnEdge(contour):
+            continue
+
         for cnt in contour:
             allContours.append(cnt.tolist())
-        print("contour: ", contour)
+        # print("contour: ", contour)
         # cv2.drawContours(img, [contour], 0, (0, 0,255), 3)
 
 # print(allContours)
@@ -57,13 +80,13 @@ approx = cv2.approxPolyDP(allContours,epsilon,True)
 hull = cv2.convexHull(allContours)
 
 
-# cv2.drawContours(img, drawContours, -1, (0, 0,255), 3)
+cv2.drawContours(img, drawContours, -1, (0, 0,255), 3)
 # cv2.drawContours(img, [allContours], 0, (0, 0,255), 3)
 
 # cv2.drawContours(img, [approx], -1, (0, 0, 255), 3)
 cv2.drawContours(img, [hull], -1, (0, 0, 255), 3)
 
 cv2.imshow("image", img)
-# cv2.imshow("image gray", imgray)
+cv2.imshow("image gray", imgray)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
