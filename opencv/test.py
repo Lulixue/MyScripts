@@ -42,7 +42,7 @@ def contourIsOnEdge(contours):
 
 ### load image and grayscale it
 # img = cv2.imread("text.png")
-img = cv2.imread("df_bu.jpg")
+img = cv2.imread("cz_bu.jpg")
 imgray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
 
@@ -108,7 +108,7 @@ approx = cv2.approxPolyDP(allContours,epsilon,True)
 hull = cv2.convexHull(allContours)
 
 print("hull: ", hull)
-# cv2.drawContours(img, drawContours, -1, (0, 0,255), 3)
+cv2.drawContours(img, drawContours, -1, (0, 0,255), 3)
 # cv2.drawContours(img, [allContours], 0, (0, 0,255), 3)
 
 # cv2.drawContours(img, [approx], -1, (0, 0, 255), 3)
@@ -121,7 +121,7 @@ for cnt in drawContours:
     rc = cv2.minAreaRect(cnt)
     box = cv2.boxPoints(rc) 
     box = np.int0(box)
-    cv2.drawContours(img, [box],0,(0,0,255),2)
+    # cv2.drawContours(img, [box],0,(0,0,255),2)
     print(rc)  
     pts = box.tolist()
 
@@ -141,12 +141,12 @@ cX = int(M["m10"] / M["m00"])
 cY = int(M["m01"] / M["m00"])
 
 # put text and highlight the center
-# cv2.circle(img, (cX, cY), 5, (255, 255, 255), -1)
+cv2.circle(img, (cX, cY), 5, (255, 255, 255), -1)
 # cv2.putText(img, "centroid", (cX - 25, cY - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
 
 
 cv2.imshow("image", img)
-# cv2.imshow("image gray", imgray)
+cv2.imshow("image gray", imgray)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
