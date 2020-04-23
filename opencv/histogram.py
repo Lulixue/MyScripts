@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import cv2
 import copy 
-
+from PIL import ImageFont, ImageDraw, Image
 from matplotlib import pyplot as plt
 
 
@@ -73,18 +73,36 @@ imgray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 ### translate into 2D array
 # plt.hist(img.ravel(),256,[0,256])
 # plt.show()
-histogram_img = cv2.calcHist([img],[0],None,[256],[0,256])
+rows,cols = img.shape[:2]
+
+font = cv2.FONT_HERSHEY_COMPLEX_SMALL
+text = "watermark"
+fontScale = 1
+thickness = 1
+size,base = cv2.getTextSize(text, font, fontScale, thickness)
+print("size: ", size, base)
+position = (cols-size[0]-5, rows-5)
+print("position: ", position)
+# crop_img = img[y:y+h, x:x+w]
+crop_img = img[(position[1]-size[1]): , position[0]:]
+histogram_img = cv2.calcHist([crop_img],[0],None,[256],[0,256])
 # histogram_img.resize(histogram_img.size)
 
 # thr = int(r_c(histogram_img))
-print("peaks:", findHistPeaks(histogram_img))
+firstPeak, secondPeak =  findHistPeaks(histogram_img)
+print("peaks:", firstPeak, secondPeak)
 
+color = (0, 0, 0)
+if firstPeak < 127: 
+    color = (255,255,255)
+cv2.putText(img, text, position, font, fontScale, color, thickness)
 # dst = cv2.equalizeHist(imgray)
-plt.plot(histogram_img)
-plt.show()
+# plt.plot(histogram_img)
+# plt.show()
 
+cv2.imshow("cropped image", crop_img)
 # cv2.imshow("hist", histogram_img)
-# cv2.imshow('Source image', img)
+cv2.imshow('Source image', img)
 # cv2.imshow('Equalized Image', dst)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
