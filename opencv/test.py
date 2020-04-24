@@ -31,7 +31,7 @@ class InnerContour:
 
 def contourIsOnEdge(contours):
     for cont in contours: 
-        print("cont: ", cont)
+        # print("cont: ", cont)
         x = cont.item(0, 0)
         y = cont.item(0, 1)
         if x <= 5 or y <= 5:
@@ -64,7 +64,6 @@ contours, hierarchy = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPRO
 
 height, width, channels = img.shape
 print("img: ", height, width, channels)
-print("len: ", len(contours)) 
 
 ### all contours together
 minArea = 100.0
@@ -81,6 +80,9 @@ for contour in contours:
             allContours.append(cnt.tolist()) 
 
 rows,cols = img.shape[:2]
+
+print("total len: ", len(contours)) 
+print("draw len: ", len(drawContours)) 
 ### draw fitting line
 # i = 0
 # for cnt in drawContours:
@@ -107,12 +109,12 @@ epsilon = 0.01*cv2.arcLength(allContours,True)
 approx = cv2.approxPolyDP(allContours,epsilon,True)
 hull = cv2.convexHull(allContours)
 
-print("hull: ", hull)
+# print("hull: ", hull)
 cv2.drawContours(img, drawContours, -1, (0, 0,255), 3)
 # cv2.drawContours(img, [allContours], 0, (0, 0,255), 3)
 
 # cv2.drawContours(img, [approx], -1, (0, 0, 255), 3)
-cv2.drawContours(img, [hull], -1, (255, 255, 255), 3)
+# cv2.drawContours(img, [hull], -1, (255, 255, 255), 3)
 
 
 ### crop contour
